@@ -21,6 +21,37 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 class HomopolarModelTest {
 
+    @Test
+    void twoWindingFreeFluxesOmitsFiniteMagnetizingBranch() {
+        PiModel piModel = new SimplePiModel().setR(1).setG1(1).setR1(1);
+        ScTransfo2W transformer = new ScTransfo2W(Y_GROUNDED, Y_GROUNDED,
+                Complex.ONE, true, Complex.ZERO, Complex.ZERO);
+        var matrix = HomopolarModel.build(branch(piModel, transformer), AdmittanceEquationSystem.FrequencyType.FREQ_50_HZ)
+                .getHomopolarAdmittanceMatrix();
+        assertEquals(1, matrix.get(0, 0).getReal(), 1e-12);
+        assertEquals(-1, matrix.get(0, 1).getReal(), 1e-12);
+        assertEquals(-1, matrix.get(1, 0).getReal(), 1e-12);
+        assertEquals(1, matrix.get(1, 1).getReal(), 1e-12);
+    }
+
+    @Test
+    void zeroMagnetizingAdmittanceRemainsFiniteAtBothFrequencies() {
+        PiModel piModel = new SimplePiModel().setX(1).setR1(1);
+        ScTransfo2W transformer = new ScTransfo2W(Y_GROUNDED, Y_GROUNDED,
+                Complex.I, true, Complex.ZERO, Complex.ZERO);
+        for (var frequency : AdmittanceEquationSystem.FrequencyType.values()) {
+            var model = HomopolarModel.build(branch(piModel, transformer), frequency);
+            assertEquals(Complex.ZERO, model.getYom());
+            double scale = frequency == AdmittanceEquationSystem.FrequencyType.FREQ_20_HZ ? 2.5 : 1;
+            var matrix = model.getHomopolarAdmittanceMatrix();
+            assertEquals(-scale, matrix.get(0, 0).getImaginary(), 1e-12);
+            assertEquals(scale, matrix.get(0, 1).getImaginary(), 1e-12);
+            assertEquals(scale, matrix.get(1, 0).getImaginary(), 1e-12);
+            assertEquals(-scale, matrix.get(1, 1).getImaginary(), 1e-12);
+            assertEquals(0, matrix.get(0, 0).getReal(), 1e-12);
+        }
+    }
+
     private static LfBranch branch(PiModel piModel, ScTransfo2W transformer) {
         return (LfBranch) Proxy.newProxyInstance(LfBranch.class.getClassLoader(), new Class<?>[]{LfBranch.class},
                 (proxy, method, args) -> switch (method.getName()) {

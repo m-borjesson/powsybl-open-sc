@@ -140,6 +140,7 @@ public class HomopolarModel {
 
                 homopolarExtension.leg1ConnectionType = scTransfo.getLeg1ConnectionType();
                 homopolarExtension.leg2ConnectionType = scTransfo.getLeg2ConnectionType();
+                homopolarExtension.freeFluxes = scTransfo.isFreeFluxes();
             }
         } else if (branch.getBranchType() == LfBranch.BranchType.TRANSFO_3_LEG_1
                 || branch.getBranchType() == LfBranch.BranchType.TRANSFO_3_LEG_2
@@ -193,8 +194,10 @@ public class HomopolarModel {
 
         // update zo and yom if frequency is not 50Hz
         homopolarExtension.zo = new Complex(homopolarExtension.zo.getReal(), homopolarExtension.zo.getImaginary() * freqCoef);
-        Complex zom = homopolarExtension.yom.reciprocal();
-        homopolarExtension.yom = new Complex(zom.getReal(), zom.getImaginary() * freqCoef).reciprocal();
+        if (homopolarExtension.yom.abs() != 0.) {
+            Complex zom = homopolarExtension.yom.reciprocal();
+            homopolarExtension.yom = new Complex(zom.getReal(), zom.getImaginary() * freqCoef).reciprocal();
+        }
 
         homopolarExtension.computeHomopolarAdmittanceMatrix();
 
