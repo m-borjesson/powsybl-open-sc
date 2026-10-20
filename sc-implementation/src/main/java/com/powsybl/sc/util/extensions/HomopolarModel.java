@@ -311,7 +311,7 @@ public class HomopolarModel {
                 // [  ]                   [        ] [  ]
                 //
                 // We set ycde = 1 / Zc * Zd - Ze²
-                Complex ycde = zc.multiply(zd).add(ze.multiply(ze)).reciprocal();
+                Complex ycde = zc.multiply(zd).subtract(ze.multiply(ze)).reciprocal();
                 yo11 = ycde.multiply(zd);
                 yo12 = ycde.multiply(-1.).multiply(ze);
                 yo22 = ycde.multiply(zc);
