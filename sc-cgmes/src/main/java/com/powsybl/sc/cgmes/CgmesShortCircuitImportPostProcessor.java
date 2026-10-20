@@ -247,13 +247,18 @@ public class CgmesShortCircuitImportPostProcessor implements CgmesImportPostProc
     }
 
     private void processPowerTransformerEnds(Network network, TripleStore tripleStore, Map<TwoWindingsTransformerFortescue, Pair<Double, Double>> tmpExtensionToRoXo) {
+        Map<String, Map<Integer, TransformerEndShunt>> shunts = new HashMap<>();
         for (PropertyBag propertyBag : tripleStore.query(queryCatalog.get("powerTransformerEndShortCircuit"))) {
             String id = propertyBag.getId("ID");
             int endNumber = propertyBag.asInt("endNumber");
             double r0 = propertyBag.asDouble("r0");
             double x0 = propertyBag.asDouble("x0");
-            double g0 = propertyBag.asDouble("g0");
-            double b0 = propertyBag.asDouble("b0");
+            TransformerEndShunt shunt = TransformerEndShunt.read(propertyBag);
+            if (shunt.state() == TransformerEndShunt.State.FINITE) {
+                LOGGER.warn("Transformer '{}' end {}: finite zero-sequence shunt (rm={}, xm={} ohms on source end base) "
+                                + "cannot be represented losslessly by the current importer; retaining legacy shunt behavior",
+                        id, endNumber, shunt.rm().orElseThrow(), shunt.xm().orElseThrow());
+            }
             double ratedS = propertyBag.asDouble("ratedS");
             TransformerEndConnection connection = TransformerEndConnection.read(propertyBag);
             WindingConnectionType legConnectionType = connection.type();
@@ -263,6 +268,7 @@ public class CgmesShortCircuitImportPostProcessor implements CgmesImportPostProc
 
             TwoWindingsTransformer t2wt = network.getTwoWindingsTransformer(id);
             if (t2wt != null) {
+                shunts.computeIfAbsent(id, key -> new HashMap<>()).put(endNumber, shunt);
                 t2wt.setRatedS(ratedS); // rated S not not filled in CGMES import example for transformers
                 TwoWindingsTransformerFortescue extension = t2wt.getExtension(TwoWindingsTransformerFortescue.class);
                 if (extension == null) {
@@ -333,14 +339,23 @@ public class CgmesShortCircuitImportPostProcessor implements CgmesImportPostProc
                         t3wt.getLeg1().setRatedS(ratedS);
                         setLegRoXoCoefs(t3wt.getLeg1(), extension.getLeg1(), r0, x0, ratedU02);
                         extension.getLeg1().setConnectionType(legConnectionType);
+                        if (shunt.state() == TransformerEndShunt.State.OPEN) {
+                            extension.getLeg1().setFreeFluxes(true);
+                        }
                     } else if (endNumber == 2) {
                         t3wt.getLeg2().setRatedS(ratedS);
                         setLegRoXoCoefs(t3wt.getLeg2(), extension.getLeg2(), r0, x0, ratedU02);
                         extension.getLeg2().setConnectionType(legConnectionType);
+                        if (shunt.state() == TransformerEndShunt.State.OPEN) {
+                            extension.getLeg2().setFreeFluxes(true);
+                        }
                     } else if (endNumber == 3) {
                         t3wt.getLeg3().setRatedS(ratedS);
                         setLegRoXoCoefs(t3wt.getLeg3(), extension.getLeg3(), r0, x0, ratedU02);
                         extension.getLeg3().setConnectionType(legConnectionType);
+                        if (shunt.state() == TransformerEndShunt.State.OPEN) {
+                            extension.getLeg3().setFreeFluxes(true);
+                        }
                     } else {
                         throw new PowsyblException("incorrect end number for 3 windings transformer end '" + id + "'");
                     }
@@ -350,6 +365,8 @@ public class CgmesShortCircuitImportPostProcessor implements CgmesImportPostProc
                 }
             }
         }
+        shunts.forEach((id, ends) -> TransformerEndShunt.applyOpenTwoWindingShunts(
+                network.getTwoWindingsTransformer(id).getExtension(TwoWindingsTransformerFortescue.class), ends));
     }
 
     public void setLegRoXoCoefs(ThreeWindingsTransformer.Leg leg, LegFortescue extLeg, double r0, double x0, double ratedU02) {
