@@ -255,26 +255,11 @@ public class CgmesShortCircuitImportPostProcessor implements CgmesImportPostProc
             double g0 = propertyBag.asDouble("g0");
             double b0 = propertyBag.asDouble("b0");
             double ratedS = propertyBag.asDouble("ratedS");
-            double rground = propertyBag.asDouble("rground");
-            double xground = propertyBag.asDouble("xground");
-            boolean grounded = propertyBag.asBoolean("grounded", false);
-            String connectionKind = propertyBag.getId("connectionKind");
-
-            String windingConnection = "WindingConnection.";
-            String connectionY = windingConnection + "Y";
-            String connectionYn = windingConnection + "Yn";
-            String connectionD = windingConnection + "D";
-
-            WindingConnectionType legConnectionType;
-            if (connectionKind.equals(connectionY)) {
-                legConnectionType = WindingConnectionType.Y;
-            } else if (connectionKind.equals(connectionD)) {
-                legConnectionType = WindingConnectionType.DELTA;
-            } else if (connectionKind.equals(connectionYn)) {
-                legConnectionType = WindingConnectionType.Y_GROUNDED;
-            } else {
-                throw new PowsyblException("Leg connection type '" + connectionKind + "' not handled in transformer : " + id);
-            }
+            TransformerEndConnection connection = TransformerEndConnection.read(propertyBag);
+            WindingConnectionType legConnectionType = connection.type();
+            boolean grounded = legConnectionType == WindingConnectionType.Y_GROUNDED;
+            double rground = connection.rground();
+            double xground = connection.xground();
 
             TwoWindingsTransformer t2wt = network.getTwoWindingsTransformer(id);
             if (t2wt != null) {
